@@ -2,8 +2,9 @@
 // Database config - update these values for your environment
 define('DB_HOST', '127.0.0.1');
 define('DB_NAME', 'dispatch_db');
-define('DB_USER', 'db_user');
-define('DB_PASS', 'db_pass');
+// MariaDB credentials provided by user
+define('DB_USER', 'IceTheNet');
+define('DB_PASS', '8xLt0H34');
 
 function getDB(): PDO
 {
