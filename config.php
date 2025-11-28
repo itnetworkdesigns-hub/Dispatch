@@ -1,4 +1,6 @@
 <?php
+// Base URL for AJAX endpoints (change for different setups)
+define('BASE_URL', '/dispatch');
 // Database config - update these values for your environment
 define('DB_HOST', '127.0.0.1');
 define('DB_NAME', 'dispatch_db');

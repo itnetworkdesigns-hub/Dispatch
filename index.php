@@ -1,5 +1,8 @@
 <?php
 // index.php — Basic entry page for the Dispatch project
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/classes/Auth.php';
+$user = Auth::user();
 ?>
 <!doctype html>
 <html lang="en">
@@ -78,31 +81,29 @@
             <a class="nav-link" href="#">Contact</a>
           </li>
 
-          <!-- Client dropdown -->
+          <?php if ($user): ?>
           <li class="nav-item dropdown ms-2">
-            <a class="nav-link dropdown-toggle" href="#" id="clientMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-              Client
+            <a class="nav-link dropdown-toggle" href="#" id="userMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <?php echo htmlspecialchars($user['email'] ?? $user['name']); ?>
             </a>
-            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="clientMenu">
-              <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#suppliersModal">Sign In</a></li>
-              <li><a class="dropdown-item" href="register_client.php">Register</a></li>
-              <li><hr class="dropdown-divider"></li>
-              <li><a class="dropdown-item" href="logout_client.php">Logout</a></li>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
+              <li><a class="dropdown-item" href="#" id="navLogout">Log out</a></li>
             </ul>
           </li>
-
-          <!-- Trucker dropdown -->
+          <?php else: ?>
           <li class="nav-item dropdown ms-2">
-            <a class="nav-link dropdown-toggle" href="#" id="truckerMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-              Trucker
+            <a class="nav-link dropdown-toggle" href="#" id="accountMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              Account
             </a>
-            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="truckerMenu">
-              <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#truckersModal">Sign In</a></li>
-              <li><a class="dropdown-item" href="register_trucker.php">Register</a></li>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="accountMenu">
+              <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#suppliersModal">Supplier Sign In</a></li>
+              <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#truckersModal">Trucker Sign In</a></li>
               <li><hr class="dropdown-divider"></li>
-              <li><a class="dropdown-item" href="logout_trucker.php">Logout</a></li>
+              <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#suppliersModal" data-action="open-register">Register Supplier</a></li>
+              <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#truckersModal" data-action="open-register">Register Trucker</a></li>
             </ul>
           </li>
+          <?php endif; ?>
         </ul>
       </div>
     </div>
@@ -110,10 +111,15 @@
 
   <main class="container">
     <div class="p-5 mb-4 bg-body rounded-3">
-      <h1 class="display-5"><?php echo 'Hello from index.php'; ?></h1>
+      <h1 class="display-5">Hello from index.php</h1>
       <p class="lead">Server time: <?php echo date('Y-m-d H:i:s'); ?></p>
       <hr class="my-4">
       <p class="small text-muted">Built with Bootstrap (CDN, latest).</p>
+      <?php if ($user): ?>
+        <div class="alert alert-success mt-3">Logged in as <strong><?php echo htmlspecialchars($user['name'] ?? $user['email']); ?></strong> (<?php echo htmlspecialchars($user['role']); ?>)</div>
+      <?php else: ?>
+        <div class="alert alert-info mt-3">You are not logged in.</div>
+      <?php endif; ?>
     </div>
   </main>
 
@@ -186,20 +192,29 @@
     // Modal state toggling: switch between login and register form inside modals
     (function(){
       const modalIds = ['truckersModal','suppliersModal'];
-
       modalIds.forEach(id => {
         const modalEl = document.getElementById(id);
         if (!modalEl) return;
-
-        const modalDialog = modalEl.querySelector('.modal-dialog');
         const titleEl = modalEl.querySelector('.modal-title');
         const bodyEl = modalEl.querySelector('.modal-body');
         const primaryBtn = modalEl.querySelector('.modal-footer .btn-primary');
 
-        // store original login HTML to restore later
-        const loginHTML = bodyEl.innerHTML;
-
-        // create register HTML (same fields for now)
+        // login and register HTML
+        const loginHTML = `
+          <form>
+            <div class="mb-3">
+              <label class="form-label">Email</label>
+              <input type="email" class="form-control" placeholder="you@example.com">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Password</label>
+              <input type="password" class="form-control" placeholder="Password">
+            </div>
+            <div class="d-flex justify-content-between align-items-center">
+              <a href="#" class="small" id="regLink" data-action="open-register">Register</a>
+              <a href="#" class="small" data-action="noop">&nbsp;</a>
+            </div>
+          </form>`;
         const registerHTML = `
           <form>
             <div class="mb-3">
@@ -211,36 +226,161 @@
               <input type="password" class="form-control" placeholder="Password">
             </div>
             <div class="d-flex justify-content-between align-items-center">
-              <a href="#" class="small" data-action="open-login">Already have an account? Sign In</a>
+              <a href="#" class="small" id="loginLink" data-action="open-login">Already have an account? Sign In</a>
               <a href="#" class="small" data-action="noop">&nbsp;</a>
             </div>
           </form>`;
 
-        // event delegation for clicks inside modal body (register link) and navbar modal triggers
-        modalEl.addEventListener('click', function(e){
-          const act = e.target && e.target.getAttribute && e.target.getAttribute('data-action');
-          if (!act) return;
-          e.preventDefault();
-          if (act === 'open-register') {
+        // Helper to set modal state and re-attach listeners
+        function setModalState(isRegister) {
+          if (isRegister) {
             titleEl.textContent = titleEl.textContent.replace(/Login/i,'Register');
             bodyEl.innerHTML = registerHTML;
             if (primaryBtn) primaryBtn.textContent = 'Register';
-          } else if (act === 'open-login') {
-            // restore login
+          } else {
             titleEl.textContent = titleEl.textContent.replace(/Register/i,'Login');
             bodyEl.innerHTML = loginHTML;
             if (primaryBtn) primaryBtn.textContent = 'Sign In';
           }
+          // Attach listeners after content swap
+          const regLink = bodyEl.querySelector('#regLink');
+          const loginLink = bodyEl.querySelector('#loginLink');
+          if (regLink) {
+            regLink.onclick = function(e) {
+              e.preventDefault();
+              setModalState(true);
+            };
+          }
+          if (loginLink) {
+            loginLink.onclick = function(e) {
+              e.preventDefault();
+              setModalState(false);
+            };
+          }
+        }
+
+        // When modal is shown, set state based on triggering element (login by default)
+        modalEl.addEventListener('show.bs.modal', function(e){
+          const action = e?.relatedTarget?.dataset?.action || null;
+          setModalState(action === 'open-register');
         });
 
-        // When modal is shown, ensure it's in login state (restore)
-        modalEl.addEventListener('show.bs.modal', function(){
-          titleEl.textContent = titleEl.textContent.replace(/Register/i,'Login');
-          bodyEl.innerHTML = loginHTML;
-          if (primaryBtn) primaryBtn.textContent = 'Sign In';
-        });
+        // Initial attach
+        setModalState(false);
       });
     })();
+    // --- Registration and Login AJAX wiring ---
+    // Get base URL from PHP config (inject as JS variable)
+    const BASE_URL = <?php echo json_encode(constant('BASE_URL')); ?>;
+
+    function showModalMessage(modalEl, msg, type = 'danger') {
+      let msgBox = modalEl.querySelector('.modal-message');
+      if (!msgBox) {
+        msgBox = document.createElement('div');
+        msgBox.className = 'modal-message mt-2';
+        modalEl.querySelector('.modal-body').prepend(msgBox);
+      }
+      msgBox.innerHTML = `<div class="alert alert-${type} py-2">${msg}</div>`;
+    }
+
+    function clearModalMessage(modalEl) {
+      const msgBox = modalEl.querySelector('.modal-message');
+      if (msgBox) msgBox.remove();
+    }
+
+    function getFormData(form) {
+      const data = {};
+      Array.from(form.elements).forEach(el => {
+        if (el.name && el.value !== undefined) data[el.name] = el.value;
+      });
+      return data;
+    }
+
+    // Attach submit handlers for both modals (login/register)
+    ['truckersModal','suppliersModal'].forEach(modalId => {
+      const modalEl = document.getElementById(modalId);
+      if (!modalEl) return;
+      modalEl.addEventListener('click', function(e){
+        // Find the closest button (handles inner elements)
+        const btn = e.target.closest('button');
+        if (!btn || !btn.classList.contains('btn-primary')) return;
+        e.preventDefault();
+        clearModalMessage(modalEl);
+        const isRegister = btn.textContent.match(/Register/i);
+        const form = modalEl.querySelector('form');
+        if (!form) return;
+        // Find email/password fields
+        const email = form.querySelector('input[type="email"]')?.value?.trim();
+        const password = form.querySelector('input[type="password"]')?.value;
+        if (!email || !password) {
+          showModalMessage(modalEl, 'Email and password required');
+          return;
+        }
+        // Determine role
+        const role = modalId === 'truckersModal' ? 'trucker' : 'supplier';
+          if (isRegister) {
+          // Registration AJAX
+          fetch(`${BASE_URL}/auth/register.php`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: email, email, password, role })
+          })
+          .then(r => r.json().catch(() => ({ success: false, error: 'Invalid server response' })))
+          .then(res => {
+            if (res && res.success) {
+              showModalMessage(modalEl, 'Registration successful! You can now log in.', 'success');
+              setTimeout(() => { modalEl.querySelector('.btn-close').click(); }, 1200);
+            } else {
+              showModalMessage(modalEl, res.error || (res.errors && res.errors.join('<br>')) || 'Registration failed');
+            }
+          })
+          .catch(err => {
+            console.error('Register error', err);
+            showModalMessage(modalEl, 'Network error');
+          });
+          } else {
+          // Login AJAX
+          fetch(`${BASE_URL}/auth/login.php`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+          })
+          .then(r => r.json().catch(() => ({ success: false, error: 'Invalid server response' })))
+          .then(res => {
+            if (res && res.success) {
+              showModalMessage(modalEl, 'Login successful!', 'success');
+              setTimeout(() => { modalEl.querySelector('.btn-close').click(); }, 1000);
+              // Optionally update UI for logged-in user here
+              // reload page to show logged-in state
+              setTimeout(() => { window.location.reload(); }, 1100);
+            } else {
+              showModalMessage(modalEl, res.error || 'Login failed');
+            }
+          })
+          .catch(err => {
+            console.error('Login error', err);
+            showModalMessage(modalEl, 'Network error');
+          });
+        }
+      });
+    });
+
+    document.querySelectorAll('.modal').forEach(modal => {
+      modal.addEventListener('hidden.bs.modal', function() {
+        document.body.focus();
+      });
+    });
+
+    // Logout handler: call server logout and reload
+    document.addEventListener('click', function(e){
+      if (!e.target) return;
+      if (e.target.id === 'navLogout') {
+        e.preventDefault();
+        fetch(`${BASE_URL}/auth/logout.php`, { method: 'POST', credentials: 'same-origin' })
+          .then(r => r.json().catch(() => ({})))
+          .finally(() => { window.location.reload(); });
+      }
+    });
   </script>
 </body>
 </html>
