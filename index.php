@@ -117,6 +117,60 @@ $user = Auth::user();
       <p class="small text-muted">Built with Bootstrap (CDN, latest).</p>
       <?php if ($user): ?>
         <div class="alert alert-success mt-3">Logged in as <strong><?php echo htmlspecialchars($user['name'] ?? $user['email']); ?></strong> (<?php echo htmlspecialchars($user['role']); ?>)</div>
+        <?php if (($user['role'] ?? null) === 'supplier'): ?>
+          <div class="d-flex gap-2 mb-3">
+            <a class="btn btn-primary" href="<?php echo htmlspecialchars(BASE_URL); ?>/supplier_order.php">Add Order</a>
+            <button class="btn btn-outline-secondary" id="refreshOrders">Refresh Orders</button>
+          </div>
+
+          <div id="supplierOrders">
+            <h4>Your Orders</h4>
+            <div class="table-responsive">
+              <table class="table table-sm table-bordered" id="ordersTable">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Cars</th>
+                    <th>Pickup</th>
+                    <th>Destination</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td colspan="6">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        <?php endif; ?>
+        <?php if (($user['role'] ?? null) === 'trucker'): ?>
+          <div class="d-flex gap-2 mb-3">
+            <button class="btn btn-primary" id="refreshAvailable">Refresh Available Orders</button>
+          </div>
+
+          <div id="truckerOrders">
+            <h4>Available Orders</h4>
+            <div class="table-responsive">
+              <table class="table table-sm table-bordered" id="availableOrdersTable">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Cars</th>
+                    <th>Pickup</th>
+                    <th>Destination</th>
+                    <th>Supplier</th>
+                    <th>Created</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td colspan="7">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        <?php endif; ?>
       <?php else: ?>
         <div class="alert alert-info mt-3">You are not logged in.</div>
       <?php endif; ?>
@@ -381,6 +435,112 @@ $user = Auth::user();
           .finally(() => { window.location.reload(); });
       }
     });
+
+    // Supplier orders listing (if present on page)
+    async function loadSupplierOrders() {
+      const table = document.getElementById('ordersTable');
+      if (!table) return;
+      const tbody = table.querySelector('tbody');
+      tbody.innerHTML = '<tr><td colspan="6">Loading...</td></tr>';
+      try {
+        const res = await fetch(`${BASE_URL}/orders/list.php`, { credentials: 'same-origin' });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json || !json.success) {
+          tbody.innerHTML = `<tr><td colspan="6">Failed to load orders</td></tr>`;
+          return;
+        }
+        const orders = json.orders || [];
+        if (!orders.length) {
+          tbody.innerHTML = '<tr><td colspan="6">No orders found.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = orders.map(o => `
+          <tr>
+            <td>${o.id}</td>
+            <td>${o.num_cars}</td>
+            <td>${escapeHtml(o.pickup_point)}</td>
+            <td>${escapeHtml(o.destination_point)}</td>
+            <td>${escapeHtml(o.status)}</td>
+            <td>${escapeHtml(o.created_at)}</td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        tbody.innerHTML = '<tr><td colspan="6">Network error</td></tr>';
+      }
+    }
+
+    function escapeHtml(s) {
+      if (s === null || s === undefined) return '';
+      return String(s).replace(/[&<>"']/g, function(m){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[m]; });
+    }
+
+    document.getElementById('refreshOrders')?.addEventListener('click', function(){ loadSupplierOrders(); });
+    // Load on page ready
+    document.addEventListener('DOMContentLoaded', function(){
+      loadSupplierOrders();
+      loadAvailableOrders();
+    });
+
+    // Truckers: load available orders
+    async function loadAvailableOrders() {
+      const table = document.getElementById('availableOrdersTable');
+      if (!table) return;
+      const tbody = table.querySelector('tbody');
+      tbody.innerHTML = '<tr><td colspan="7">Loading...</td></tr>';
+      try {
+        const res = await fetch(`${BASE_URL}/orders/available.php`, { credentials: 'same-origin' });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json || !json.success) {
+          tbody.innerHTML = `<tr><td colspan="7">Failed to load orders</td></tr>`;
+          return;
+        }
+        const orders = json.orders || [];
+        if (!orders.length) {
+          tbody.innerHTML = '<tr><td colspan="7">No available orders.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = orders.map(o => `
+          <tr>
+            <td>${o.id}</td>
+            <td>${o.num_cars}</td>
+            <td>${escapeHtml(o.pickup_point)}</td>
+            <td>${escapeHtml(o.destination_point)}</td>
+            <td>${escapeHtml(o.supplier_email || '')}</td>
+            <td>${escapeHtml(o.created_at)}</td>
+            <td><button class="btn btn-sm btn-success accept-btn" data-id="${o.id}">Accept</button></td>
+          </tr>
+        `).join('');
+        // attach handlers
+        table.querySelectorAll('.accept-btn').forEach(btn => {
+          btn.addEventListener('click', async function(){
+            const id = this.dataset.id;
+            if (!confirm('Accept order #' + id + '?')) return;
+            try {
+              const res = await fetch(`${BASE_URL}/orders/accept.php`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ order_id: Number(id) })
+              });
+              const json = await res.json().catch(() => null);
+              if (!res.ok || !json || !json.success) {
+                alert((json && json.error) || 'Failed to accept order');
+                return;
+              }
+              alert('Order accepted: #' + id);
+              loadAvailableOrders();
+              loadSupplierOrders();
+            } catch (err) {
+              alert('Network error');
+            }
+          });
+        });
+      } catch (err) {
+        tbody.innerHTML = '<tr><td colspan="7">Network error</td></tr>';
+      }
+    }
+
+    document.getElementById('refreshAvailable')?.addEventListener('click', function(){ loadAvailableOrders(); });
   </script>
 </body>
 </html>
