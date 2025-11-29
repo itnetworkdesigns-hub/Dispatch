@@ -30,12 +30,13 @@ Auth::requireAdmin();
   </div>
 
   <script>
+    const BASE_URL = <?php echo json_encode(constant('BASE_URL')); ?>;
     async function loadPending() {
       const t = document.getElementById('pendingUsersTable');
       const tbody = t.querySelector('tbody');
       tbody.innerHTML = '<tr><td colspan="6">Loading...</td></tr>';
       try {
-        const res = await fetch('admin/users/pending.php', { credentials: 'same-origin' });
+        const res = await fetch(BASE_URL + '/admin/users/pending.php', { credentials: 'same-origin' });
         const json = await res.json().catch(() => null);
         if (!res.ok || !json || !json.success) {
           tbody.innerHTML = '<tr><td colspan="6">Failed to load</td></tr>';
@@ -59,7 +60,7 @@ Auth::requireAdmin();
         t.querySelectorAll('.approve').forEach(b => b.addEventListener('click', async function(){
           const id = this.dataset.id;
           if (!confirm('Approve user #' + id + '?')) return;
-          const res = await fetch('admin/users/approve.php', { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'same-origin', body: JSON.stringify({ user_id: Number(id) }) });
+          const res = await fetch(BASE_URL + '/admin/users/approve.php', { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'same-origin', body: JSON.stringify({ user_id: Number(id) }) });
           const j = await res.json().catch(() => null);
           if (!res.ok || !j || !j.success) { alert((j && j.error) || 'Approve failed'); return; }
           loadPending();

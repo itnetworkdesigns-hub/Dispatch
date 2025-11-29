@@ -79,6 +79,12 @@ $user = Auth::user();
             <a class="nav-link" href="#">Contact</a>
           </li>
 
+          <?php if ($user && Auth::isAdmin()): ?>
+          <li class="nav-item ms-2">
+            <a class="nav-link" href="<?php echo htmlspecialchars(BASE_URL); ?>/admin/users.php">Admin</a>
+          </li>
+          <?php endif; ?>
+
           <?php if ($user): ?>
           <li class="nav-item dropdown ms-2">
             <a class="nav-link dropdown-toggle" href="#" id="userMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
