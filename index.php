@@ -12,10 +12,8 @@ $user = Auth::user();
   <title>Dispatch</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@latest/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
-    /* Full-screen hero */
+    /* Hero - let content and image determine height */
     .hero {
-      height: 100vh;
-      min-height: 480px;
       position: relative;
     }
     .hero img {
@@ -111,12 +109,10 @@ $user = Auth::user();
 
   <main class="container">
     <div class="p-5 mb-4 bg-body rounded-3">
-      <h1 class="display-5">Hello from index.php</h1>
-      <p class="lead">Server time: <?php echo date('Y-m-d H:i:s'); ?></p>
+      <h1 class="display-5">Dispatch</h1>
+      <p class="lead">Manage orders and assignments.</p>
       <hr class="my-4">
-      <p class="small text-muted">Built with Bootstrap (CDN, latest).</p>
       <?php if ($user): ?>
-        <div class="alert alert-success mt-3">Logged in as <strong><?php echo htmlspecialchars($user['name'] ?? $user['email']); ?></strong> (<?php echo htmlspecialchars($user['role']); ?>)</div>
         <?php if (($user['role'] ?? null) === 'supplier'): ?>
           <div class="d-flex gap-2 mb-3">
             <a class="btn btn-primary" href="<?php echo htmlspecialchars(BASE_URL); ?>/supplier_order.php">Add Order</a>
@@ -170,6 +166,28 @@ $user = Auth::user();
               </table>
             </div>
           </div>
+            
+            <div id="workOrders" class="mt-4">
+              <h4>Your Assigned Work (Accepted Orders)</h4>
+              <div class="table-responsive">
+                <table class="table table-sm table-bordered" id="assignedOrdersTable">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Cars</th>
+                      <th>Pickup</th>
+                      <th>Destination</th>
+                      <th>Status</th>
+                      <th>Accepted At</th>
+                      <th>Created</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td colspan="7">Loading...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
         <?php endif; ?>
       <?php else: ?>
         <div class="alert alert-info mt-3">You are not logged in.</div>
@@ -541,6 +559,43 @@ $user = Auth::user();
     }
 
     document.getElementById('refreshAvailable')?.addEventListener('click', function(){ loadAvailableOrders(); });
+
+    // Truckers: load assigned (accepted) orders - work to do
+    async function loadAssignedOrders() {
+      const table = document.getElementById('assignedOrdersTable');
+      if (!table) return;
+      const tbody = table.querySelector('tbody');
+      tbody.innerHTML = '<tr><td colspan="7">Loading...</td></tr>';
+      try {
+        const res = await fetch(`${BASE_URL}/orders/assigned.php`, { credentials: 'same-origin' });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json || !json.success) {
+          tbody.innerHTML = `<tr><td colspan="7">Failed to load assigned orders</td></tr>`;
+          return;
+        }
+        const orders = json.orders || [];
+        if (!orders.length) {
+          tbody.innerHTML = '<tr><td colspan="7">No assigned orders.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = orders.map(o => `
+          <tr>
+            <td>${o.id}</td>
+            <td>${o.num_cars}</td>
+            <td>${escapeHtml(o.pickup_point)}</td>
+            <td>${escapeHtml(o.destination_point)}</td>
+            <td>${escapeHtml(o.status)}</td>
+            <td>${escapeHtml(o.accepted_at || '')}</td>
+            <td>${escapeHtml(o.created_at)}</td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        tbody.innerHTML = '<tr><td colspan="7">Network error</td></tr>';
+      }
+    }
+
+    // refresh assigned orders button not needed (auto refresh on accept), but load on DOM ready
+    document.addEventListener('DOMContentLoaded', function(){ loadAssignedOrders(); });
   </script>
 </body>
 </html>

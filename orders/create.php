@@ -35,6 +35,15 @@ try {
     $db = getDB();
     $stmt = $db->prepare('INSERT INTO orders (supplier_id, num_cars, pickup_point, destination_point, notes) VALUES (:supplier_id, :num_cars, :pickup, :destination, :notes)');
     $user = Auth::user();
+    // ensure supplier is approved
+    $check = $db->prepare('SELECT is_approved FROM users WHERE id = :id LIMIT 1');
+    $check->execute([':id' => $user['id']]);
+    $r = $check->fetch();
+    if (empty($r['is_approved'])) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Account not approved by admin']);
+        exit;
+    }
     $stmt->execute([
         ':supplier_id' => $user['id'],
         ':num_cars' => $num_cars,
